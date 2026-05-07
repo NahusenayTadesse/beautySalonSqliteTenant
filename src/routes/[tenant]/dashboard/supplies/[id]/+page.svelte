@@ -1,0 +1,177 @@
+<script lang="ts">
+	import { zod4Client } from 'sveltekit-superforms/adapters';
+	import { edit as schema } from './schema';
+	import InputComp from '$lib/formComponents/InputComp.svelte';
+	import { columns } from './columns';
+	let { data } = $props();
+
+	import SingleTable from '$lib/components/SingleTable.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { superForm } from 'sveltekit-superforms/client';
+
+	import LoadingBtn from '$lib/formComponents/LoadingBtn.svelte';
+	import { ArrowLeft, Pencil, Save, History } from '@lucide/svelte';
+	import type { Snapshot } from '@sveltejs/kit';
+
+	import SingleView from '$lib/components/SingleView.svelte';
+	import Delete from '$lib/forms/Delete.svelte';
+	import { formatEthiopianDate } from '$lib/global.svelte.js';
+
+	let singleTable = $derived([
+		{ name: 'Name', value: data.supply?.name },
+		{ name: 'Available Quantity', value: data.supply?.quantity },
+		{ name: 'Unit of Measurement', value: data.supply?.unitOfMeasure },
+		{ name: 'Product Description', value: data.supply?.description },
+		{ name: 'Reorder Notification Quantity', value: data.supply?.reorderLevel },
+		{ name: 'Added On', value: formatEthiopianDate(new Date(data?.supply?.createdAt)) },
+		{ name: 'Added By', value: data.supply?.createdBy }
+	]);
+
+	const { form, errors, enhance, delayed, capture, restore, message } = superForm(data.form, {
+		validators: zod4Client(schema),
+		resetForm: false
+	});
+
+	import { toast } from 'svelte-sonner';
+	$effect(() => {
+		if ($message) {
+			if ($message.type === 'error') {
+				toast.error($message.text);
+			} else {
+				toast.success($message.text);
+			}
+		}
+	});
+
+	(($form.name = data.supply?.name),
+		($form.description = data.supply?.description),
+		($form.supplyId = data.supply.id),
+		($form.costPerUnit = data.supply.costPerUnit),
+		($form.quantity = data.supply.quantity),
+		($form.reorderLevel = data.supply.reorderLevel),
+		($form.supplier = data.supply.supplier),
+		($form.unitOfMeasure = data.supply.unitOfMeasure));
+
+	export const snapshot: Snapshot = { capture, restore };
+
+	//   let date = $derived(dateProxy(editForm, 'appointmentDate', { format: 'date'}));
+	import Adjustment from '$lib/forms/Adjustment.svelte';
+	import { getCurrentMonthRange } from '$lib/global.svelte.js';
+	import Damaged from '$lib/forms/Damaged.svelte';
+
+	let edit = $state(false);
+</script>
+
+<svelte:head>
+	<title>Supply Details</title>
+</svelte:head>
+
+<SingleView title="Supply Details" class="w-full">
+	<div class="mt-4 flex w-full flex-row flex-wrap items-start justify-start gap-2 pl-4">
+		<Button onclick={() => (edit = !edit)}>
+			{#if !edit}
+				<Pencil class="h-4 w-4" />
+				Edit
+			{:else}
+				<ArrowLeft class="h-4 w-4" />
+
+				Back
+			{/if}
+		</Button>
+		<Delete redirect="/dashboard/supplies" />
+		<Adjustment data={data.adjustForm} name={data.supply?.name} employees={data.employeesList} />
+
+		<Button href="/dashboard/supplies/{data.supply.id}/ranges/{getCurrentMonthRange()}">
+			<History /> See Change History
+		</Button>
+		<Damaged data={data.damagedForm} name={data.supply?.name} employees={data.employeesList} />
+		<Button href="/dashboard/supplies/{data.supply.id}/damaged/{getCurrentMonthRange()}">
+			<History /> See Damaged History
+		</Button>
+	</div>
+	{#if edit === false}
+		<div class="w-full p-4"><SingleTable {singleTable} /></div>
+	{/if}
+	{#if edit}
+		<div class="w-full p-4">
+			<form action="?/editSupply" use:enhance class="flex flex-col gap-4" id="edit" method="post">
+				<InputComp
+					label="Item Name"
+					name="name"
+					type="text"
+					required
+					placeholder="Enter Supply Name"
+					{errors}
+					{form}
+				/>
+
+				<InputComp
+					label="Item Type"
+					name="supplyType"
+					type="select"
+					placeholder="Enter Item Type"
+					{errors}
+					{form}
+					items={data?.typeList}
+				/>
+
+				<InputComp
+					label="Item Description"
+					name="description"
+					type="textarea"
+					placeholder="Enter Supply Description"
+					{errors}
+					{form}
+				/>
+
+				<InputComp
+					label="Unit of Measurement"
+					name="unitOfMeasurement"
+					type="select"
+					placeholder="Enter Unit of Measurement"
+					{errors}
+					{form}
+					items={[
+						{ value: 'kg', name: 'Kilogram' },
+						{ value: 'g', name: 'Gram' },
+						{ value: 'ml', name: 'Milliliter' },
+						{ value: 'l', name: 'Liter' },
+						{ value: 'pcs', name: 'Piece' },
+						{ value: 'other', name: 'Other' }
+					]}
+				/>
+
+				{#if $form.unitOfMeasurement === 'other'}
+					<div transition:fly={{ x: -20, duration: 300 }}>
+						<InputComp
+							label="Enter Other Unit of Measurement"
+							name="otherUnitOfMeasurement"
+							type="text"
+							placeholder="Enter Other Unit of Measurement"
+							{errors}
+							{form}
+						/>
+					</div>
+				{/if}
+
+				<InputComp
+					label="Reorder Notify Level"
+					name="reorderLevel"
+					type="number"
+					placeholder="Enter when you want to be notified"
+					{errors}
+					{form}
+				/>
+
+				<Button form="edit" type="submit" class="mt-4">
+					{#if $delayed}
+						<LoadingBtn name="Saving Changes" />
+					{:else}
+						<Save class="h-4 w-4" />
+						Save Changes
+					{/if}
+				</Button>
+			</form>
+		</div>
+	{/if}
+</SingleView>
